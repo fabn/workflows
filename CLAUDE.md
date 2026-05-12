@@ -25,9 +25,9 @@ Two consumer-facing surfaces, both intended to be referenced from external repos
 
 2. **Composite action** `actions/doctl/action.yml` — installs `doctl` and runs `doctl kubernetes cluster kubeconfig save` so subsequent `kubectl` steps in the same job are authenticated. The two deploy workflows depend on this.
 
-### Internal cross-reference (important)
+### Internal cross-reference
 
-`deploy-restart.yml` and `deploy-set-image.yml` both reference the composite action as `uses: fabn/workflows/actions/doctl@main` — **pinned to `@main`, not to the same ref the caller used**. The `v1` / `v1.0.0` tags already exist and point at this `@main` reference, so a consumer pinning `@v1` still picks up `actions/doctl@main` at runtime. When editing the composite action, treat `main` as the published surface for consumers of every workflow tag — there is no per-tag isolation. If you want a future release to be self-contained, change those `@main` references to the matching tag (and remember to update them again on the next release).
+`deploy-restart.yml` and `deploy-set-image.yml` reference the composite action as `uses: fabn/workflows/actions/doctl@v1`. The `v1` tag is a **floating major tag** maintained by `.github/workflows/release.yml`: on every published release (e.g. `v1.0.2`), the `release.yml` job force-moves `v1` to that commit. So a consumer pinning `@v1` gets a workflow file whose internal `actions/doctl@v1` reference resolves to the same commit — self-consistent, no manual sync. If you ever introduce `v2`, update the internal refs in the deploy workflows in the same PR that triggers the `v2.0.0` release.
 
 ### Versioning contract
 

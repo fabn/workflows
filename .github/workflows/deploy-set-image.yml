@@ -49,7 +49,7 @@ jobs:
       group: ${{ inputs.deployment }}-${{ inputs.namespace }}-${{ inputs.cluster }}
       cancel-in-progress: true
     steps:
-      - uses: fabn/workflows/actions/doctl@main
+      - uses: fabn/workflows/actions/doctl@v1
         with:
           cluster: ${{ inputs.cluster }}
           token: ${{ secrets.token }}
