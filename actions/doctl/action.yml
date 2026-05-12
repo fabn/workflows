@@ -1,0 +1,22 @@
+name: Configure DigitalOcean Kubernetes Cluster
+description: Configure kubectl authentication for a DigitalOcean Kubernetes cluster
+inputs:
+  cluster:
+    description: DigitalOcean Kubernetes cluster name
+    required: true
+  token:
+    description: DigitalOcean API token
+    required: true
+  cluster-alias:
+    description: Cluster alias in kubeconfig file
+    default: live-cluster
+runs:
+  using: "composite"
+  steps:
+    - name: Install doctl cli
+      uses: digitalocean/action-doctl@v2
+      with:
+        token: ${{ inputs.token }}
+    - name: Save K8S credentials
+      shell: bash
+      run: doctl kubernetes cluster kubeconfig save ${{ inputs.cluster }} --alias ${{ inputs.cluster-alias }}

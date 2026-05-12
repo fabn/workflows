@@ -1,0 +1,44 @@
+name: Rollbar
+on:
+  workflow_call:
+    inputs:
+      environment:
+        description: 'The environment name'
+        required: false
+        type: string
+        default: staging
+      status:
+        description: 'The status of the deployment'
+        required: false
+        type: string
+        default: 'succeeded'
+      deploy_id:
+        description: 'Deployment identifier when using 2 phase deploy'
+        required: false
+        type: string
+    secrets:
+      access_token:
+        description: 'The Rollbar access token'
+        required: true
+    outputs:
+      deploy_id:
+        description: 'The deployment identifier'
+        value: ${{ jobs.rollbar.outputs.deploy_id }}
+
+jobs:
+  rollbar:
+    name: Rollbar Deployment
+    runs-on: ubuntu-latest
+    outputs:
+      deploy_id: ${{ steps.rollbar.outputs.deploy_id }}
+    steps:
+      - id: rollbar
+        name: Notify deploy to Rollbar
+        uses: rollbar/github-deploy-action@2.1.2
+        with:
+          environment: ${{ inputs.environment }}
+          version: ${{ github.ref_type == 'tag' && github.ref_name || github.sha }}
+          local_username: ${{ github.actor }}
+          status: ${{ inputs.status }}
+        env:
+          ROLLBAR_ACCESS_TOKEN: ${{ secrets.access_token }}

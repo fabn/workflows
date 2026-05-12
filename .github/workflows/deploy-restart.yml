@@ -1,0 +1,52 @@
+name: K8S Deployment Restart
+
+on:
+  workflow_call:
+    inputs:
+      cluster:
+        type: string
+        description: 'DigitalOcean Kubernetes cluster name'
+        required: true
+      namespace:
+        description: 'Kubernetes namespace'
+        required: true
+        type: string
+      deployment:
+        description: 'Workload Name (deployment)'
+        required: false
+        type: string
+      environment_name:
+        description: 'Github environment name'
+        required: false
+        type: string
+      environment_url:
+        description: 'Github environment URL'
+        required: false
+        type: string
+    secrets:
+      token:
+        description: 'DigitalOcean API token'
+        required: true
+
+concurrency:
+  group: ${{ inputs.deployment }}-${{ inputs.namespace }}
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: Deployment restart
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: ${{ inputs.environment_name }}
+      url: ${{ inputs.environment_url }}
+    # Allow one deployment at a time
+    steps:
+      - uses: fabn/workflows/actions/doctl@main
+        with:
+          cluster: ${{ inputs.cluster }}
+          token: ${{ secrets.token }}
+      - name: Redeploy workload
+        run: kubectl rollout restart deployment/${{ inputs.deployment }} -n ${{ inputs.namespace }}
+      - name: Awaiting Rollout
+        run: kubectl rollout status deployment/${{ inputs.deployment }} -n ${{ inputs.namespace }}

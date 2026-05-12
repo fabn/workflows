@@ -1,0 +1,32 @@
+name: New Relic
+
+on:
+  workflow_call:
+    inputs:
+      application_id:
+        description: 'The application to mark as deployed'
+        required: true
+        type: string
+    secrets:
+      api_key:
+        description: 'New Relic API key'
+        required: true
+      account_id:
+        description: 'New Relic account ID'
+        required: true
+
+jobs:
+  newrelic:
+    runs-on: ubuntu-latest
+    name: New Relic Deployment
+    steps:
+      - name: Create New Relic deployment marker
+        uses: newrelic/deployment-marker-action@v1
+        with:
+          apiKey: ${{ secrets.api_key }}
+          accountId: ${{ secrets.account_id }}
+          applicationId: ${{ inputs.application_id }}
+          revision: ${{ github.ref_type == 'tag' && github.ref_name || github.sha }}
+          user: ${{ github.actor }}
+          description: ${{ github.event.release.name }}
+          changelog: "Full description at ${{ github.event.release.url }}\n ${{ github.event.release.body }}"

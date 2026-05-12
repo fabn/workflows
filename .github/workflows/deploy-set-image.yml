@@ -1,0 +1,59 @@
+name: Rancher Deploy Image
+
+on:
+  workflow_call:
+    inputs:
+      cluster:
+        type: string
+        description: 'DigitalOcean Kubernetes cluster name'
+        required: true
+      namespace:
+        description: 'Kubernetes namespace'
+        required: true
+        type: string
+      deployment:
+        description: 'Rancher Deployment Name'
+        required: true
+        type: string
+      pod_name:
+        description: 'Pod name to update'
+        required: false
+        type: string
+      image:
+        description: 'Image to set as new deployment image'
+        required: true
+        type: string
+      environment_name:
+        description: 'Github environment name'
+        required: false
+        type: string
+      environment_url:
+        description: 'Github environment URL'
+        required: false
+        type: string
+    secrets:
+      token:
+        description: 'DigitalOcean API token'
+        required: true
+
+jobs:
+  deploy:
+    name: Set Image
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: ${{ inputs.environment_name }}
+      url: ${{ inputs.environment_url }}
+    # Allow one deployment at a time
+    concurrency:
+      group: ${{ inputs.deployment }}-${{ inputs.namespace }}-${{ inputs.cluster }}
+      cancel-in-progress: true
+    steps:
+      - uses: fabn/workflows/actions/doctl@main
+        with:
+          cluster: ${{ inputs.cluster }}
+          token: ${{ secrets.token }}
+      - name: Update workload image
+        run: kubectl set image deployment/${{ inputs.deployment }} ${{ inputs.pod_name || inputs.deployment }}=${{ inputs.image}} -n ${{ inputs.namespace }}
+      - name: Awaiting Rollout
+        run: kubectl rollout status deployment/${{ inputs.deployment }} -n ${{ inputs.namespace }}
