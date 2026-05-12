@@ -1,0 +1,42 @@
+name: Bump major tag
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  bump-major-tag:
+    name: Move floating major tag
+    runs-on: ubuntu-latest
+    if: ${{ !github.event.release.prerelease }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          token: ${{ github.token }}
+      - name: Compute major tag
+        id: major
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          if [[ ! "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Release tag '$RELEASE_TAG' is not a vMAJOR.MINOR.PATCH semver tag — skipping."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          MAJOR_TAG="${RELEASE_TAG%%.*}"
+          echo "major_tag=$MAJOR_TAG" >> "$GITHUB_OUTPUT"
+          echo "release_tag=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
+      - name: Move major tag
+        if: steps.major.outputs.skip != 'true'
+        env:
+          MAJOR_TAG: ${{ steps.major.outputs.major_tag }}
+          RELEASE_TAG: ${{ steps.major.outputs.release_tag }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -f "$MAJOR_TAG" "$RELEASE_TAG"
+          git push origin "refs/tags/$MAJOR_TAG" --force
