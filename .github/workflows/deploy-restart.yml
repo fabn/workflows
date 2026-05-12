@@ -42,7 +42,7 @@ jobs:
       url: ${{ inputs.environment_url }}
     # Allow one deployment at a time
     steps:
-      - uses: fabn/workflows/actions/doctl@main
+      - uses: fabn/workflows/actions/doctl@v1
         with:
           cluster: ${{ inputs.cluster }}
           token: ${{ secrets.token }}
