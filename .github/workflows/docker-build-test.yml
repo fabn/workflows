@@ -41,19 +41,13 @@ jobs:
       image_name: ghcr.io/${{ github.repository }}-smoke
     secrets: inherit
 
-  build-context:
-    name: Build from subdirectory context
+  build-subdir:
+    name: Build from a subdirectory (context + dockerfile)
     uses: ./.github/workflows/docker-build.yml
     with:
       push: false
       context: test/sub
-    secrets: inherit
-
-  build-dockerfile:
-    name: Build with explicit dockerfile
-    uses: ./.github/workflows/docker-build.yml
-    with:
-      push: false
+      # build-push-action's `file` is repo-root relative, so pass the full path.
       dockerfile: test/sub/Dockerfile
     secrets: inherit
 
