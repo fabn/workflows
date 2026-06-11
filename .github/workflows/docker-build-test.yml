@@ -1,0 +1,82 @@
+name: docker-build smoke test
+
+# Exercises the docker-build reusable workflow end to end by actually calling
+# it, which actionlint (the only other CI here) cannot do — it would not catch
+# a broken expression, a context that is unavailable where it is used, or an
+# input that stops being wired through. Every call runs with `push: false`, so
+# the smoke test never writes to the registry and needs no write permissions.
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/docker-build.yml
+      - .github/workflows/docker-build-test.yml
+      - Dockerfile
+      - test/**
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/docker-build.yml
+      - .github/workflows/docker-build-test.yml
+      - Dockerfile
+      - test/**
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-default:
+    name: Build with defaults
+    uses: ./.github/workflows/docker-build.yml
+    with:
+      push: false
+    secrets: inherit
+
+  build-image-name:
+    name: Build with image_name override
+    uses: ./.github/workflows/docker-build.yml
+    with:
+      push: false
+      image_name: ghcr.io/${{ github.repository }}-smoke
+    secrets: inherit
+
+  build-context:
+    name: Build from subdirectory context
+    uses: ./.github/workflows/docker-build.yml
+    with:
+      push: false
+      context: test/sub
+    secrets: inherit
+
+  build-dockerfile:
+    name: Build with explicit dockerfile
+    uses: ./.github/workflows/docker-build.yml
+    with:
+      push: false
+      dockerfile: test/sub/Dockerfile
+    secrets: inherit
+
+  assert-outputs:
+    name: Assert outputs
+    needs: [build-default, build-image-name]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Default image base resolves to the repository on ghcr.io
+        env:
+          IMAGE: ${{ needs.build-default.outputs.image }}
+          BASE: ${{ needs.build-default.outputs.base }}
+          TAG: ${{ needs.build-default.outputs.tag }}
+          EXPECTED_BASE: ghcr.io/${{ github.repository }}
+        run: |
+          echo "image=$IMAGE base=$BASE tag=$TAG"
+          test "$BASE" = "$EXPECTED_BASE"
+          test -n "$TAG"
+          test "$IMAGE" = "$EXPECTED_BASE:$TAG"
+      - name: image_name override is honoured in the outputs
+        env:
+          BASE: ${{ needs.build-image-name.outputs.base }}
+          EXPECTED_BASE: ghcr.io/${{ github.repository }}-smoke
+        run: |
+          echo "base=$BASE"
+          test "$BASE" = "$EXPECTED_BASE"
