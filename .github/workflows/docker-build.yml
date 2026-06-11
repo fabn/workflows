@@ -24,7 +24,7 @@ on:
         type: string
         default: .
       dockerfile:
-        description: Path to the Dockerfile, relative to the build context (defaults to <context>/Dockerfile)
+        description: Path to the Dockerfile (repo-root relative). Defaults to <context>/Dockerfile when not given.
         required: false
         type: string
       platforms:
@@ -111,7 +111,10 @@ jobs:
         uses: docker/build-push-action@v7
         with:
           context: ${{ inputs.context }}
-          file: ${{ inputs.dockerfile }}
+          # Default the Dockerfile to <context>/Dockerfile when not given. The
+          # action's own default is a root-relative `Dockerfile`, which would
+          # build the root Dockerfile against a subdirectory context.
+          file: ${{ inputs.dockerfile != '' && inputs.dockerfile || format('{0}/Dockerfile', inputs.context) }}
           platforms: ${{ inputs.platforms }}
           push: ${{ inputs.push }}
           # When explicit name is given use that otherwise use the one from metadata
