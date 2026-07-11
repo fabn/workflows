@@ -68,7 +68,7 @@ jobs:
       base: ${{ inputs.image_name != '' && inputs.image_name || format('ghcr.io/{0}', github.repository) }}
       version: ${{ steps.meta.outputs.version }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           ref: ${{ inputs.ref }}
       - name: Set up Docker Buildx
