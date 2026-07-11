@@ -45,8 +45,8 @@ runner per platform — no QEMU emulation — pushing each build by digest only,
 then merges the digests into a single multi-arch manifest list carrying the
 same tags `docker-build.yml` would emit. Defaults to `linux/amd64` on
 `ubuntu-latest` plus `linux/arm64` on `ubuntu-24.04-arm` (GitHub's ARM runner,
-free for public repositories; private repositories should override `runners`
-with paid or self-hosted ARM labels). Same automatic build args as
+free for public repositories; private repositories should override `runners`,
+see the example below). Same automatic build args as
 `docker-build.yml`.
 
 | Input | Required | Description |
@@ -76,6 +76,31 @@ with paid or self-hosted ARM labels). Same automatic build args as
 jobs:
   build:
     uses: fabn/workflows/.github/workflows/docker-build-multi.yml@v1
+    secrets: inherit
+```
+
+**Calling from a private repository.** GitHub's `ubuntu-24.04-arm` runner is
+only available (free) on public repositories: on a private one the arm64 job
+would sit queued forever waiting for a runner that never picks it up. Pass
+`runners` explicitly and point the arm64 entry at a runner your repository
+actually has. Each `runner` value goes straight into the job's `runs-on`, so
+it can be a single label — e.g. the name of a paid ARM
+[larger runner](https://docs.github.com/en/actions/using-github-hosted-runners/using-larger-runners)
+configured in your organization settings — or an array of labels for a
+self-hosted runner:
+
+```yaml
+jobs:
+  build:
+    uses: fabn/workflows/.github/workflows/docker-build-multi.yml@v1
+    with:
+      # amd64 on the standard hosted runner, arm64 on a self-hosted runner
+      # registered with the "self-hosted", "linux" and "ARM64" labels.
+      # For a paid ARM larger runner use its name instead, e.g.
+      # {"platform": "linux/arm64", "runner": "my-org-arm64-runner"}
+      runners: >-
+        [{"platform": "linux/amd64", "runner": "ubuntu-latest"},
+         {"platform": "linux/arm64", "runner": ["self-hosted", "linux", "ARM64"]}]
     secrets: inherit
 ```
 
