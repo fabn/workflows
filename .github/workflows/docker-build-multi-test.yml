@@ -1,9 +1,11 @@
 name: docker-build-multi smoke test
 
-# TEMPORARY end-to-end configuration: the default build pushes for real to
-# ghcr.io so the merge job, the manifest list and the per-platform images can
-# be verified on this PR. To be reverted to a push-less configuration (like
-# docker-build-test.yml) before merging.
+# Exercises the docker-build-multi reusable workflow end to end by actually
+# calling it: each platform builds natively on its own runner (amd64 on
+# ubuntu-latest, arm64 on ubuntu-24.04-arm). Every call runs with
+# `push: false`, so the smoke test never writes to the registry and needs no
+# write permissions; the merge job is skipped since there are no pushed
+# digests to merge.
 
 on:
   pull_request:
@@ -21,84 +23,19 @@ on:
 
 permissions:
   contents: read
-  packages: write
 
 jobs:
-  build-push:
-    name: Build and push both platforms natively
+  build-default:
+    name: Build both platforms natively
     uses: ./.github/workflows/docker-build-multi.yml
+    with:
+      push: false
     secrets: inherit
 
-  build-skip-push:
-    name: Build a single platform without pushing
+  build-custom-runners:
+    name: Build a single platform via runners override
     uses: ./.github/workflows/docker-build-multi.yml
     with:
       push: false
       runners: '[{"platform": "linux/amd64", "runner": "ubuntu-latest"}]'
     secrets: inherit
-
-  assert-outputs:
-    name: Assert outputs
-    needs: build-push
-    runs-on: ubuntu-latest
-    steps:
-      - name: Outputs resolve to the repository image on ghcr.io
-        env:
-          IMAGE: ${{ needs.build-push.outputs.image }}
-          BASE: ${{ needs.build-push.outputs.base }}
-          TAG: ${{ needs.build-push.outputs.tag }}
-          EXPECTED_BASE: ghcr.io/${{ github.repository }}
-        run: |
-          echo "image=$IMAGE base=$BASE tag=$TAG"
-          test "$BASE" = "$EXPECTED_BASE"
-          test -n "$TAG"
-          test "$IMAGE" = "$EXPECTED_BASE:$TAG"
-
-  verify-manifest:
-    name: Verify multi arch manifest
-    needs: build-push
-    runs-on: ubuntu-latest
-    steps:
-      - name: Login to GitHub Container Registry
-        uses: docker/login-action@v4
-        with:
-          registry: ghcr.io
-          username: ${{ github.repository_owner }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Manifest list contains exactly amd64 and arm64
-        env:
-          IMAGE: ${{ needs.build-push.outputs.image }}
-        run: |
-          archs=$(docker buildx imagetools inspect --raw "$IMAGE" \
-            | jq -r '[.manifests[].platform.architecture | select(. != "unknown")] | sort | unique | join(",")')
-          echo "architectures: $archs"
-          test "$archs" = "amd64,arm64"
-
-  run-image:
-    name: Run image on ${{ matrix.platform }}
-    needs: build-push
-    runs-on: ${{ matrix.runner }}
-    strategy:
-      matrix:
-        include:
-          - runner: ubuntu-latest
-            platform: amd64
-            machine: x86_64
-          - runner: ubuntu-24.04-arm
-            platform: arm64
-            machine: aarch64
-    steps:
-      - name: Login to GitHub Container Registry
-        uses: docker/login-action@v4
-        with:
-          registry: ghcr.io
-          username: ${{ github.repository_owner }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Image runs natively on ${{ matrix.platform }}
-        env:
-          IMAGE: ${{ needs.build-push.outputs.image }}
-          EXPECTED: ${{ matrix.machine }}
-        run: |
-          machine=$(docker run --rm --entrypoint uname "$IMAGE" -m)
-          echo "uname -m: $machine"
-          test "$machine" = "$EXPECTED"
