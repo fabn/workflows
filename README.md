@@ -38,6 +38,63 @@ jobs:
     secrets: inherit
 ```
 
+### `docker-build-multi.yml`
+
+Multi-arch variant of `docker-build.yml`. Builds the image natively on one
+runner per platform — no QEMU emulation — pushing each build by digest only,
+then merges the digests into a single multi-arch manifest list carrying the
+same tags `docker-build.yml` would emit. Defaults to `linux/amd64` on
+`ubuntu-latest` plus `linux/arm64` on `ubuntu-24.04-arm` (GitHub's ARM runner,
+free for public repositories; private repositories should override `runners`
+with paid or self-hosted ARM labels). Same automatic build args as
+`docker-build.yml`.
+
+| Input | Required | Description |
+|---|---|---|
+| `image_name` | no | Base image name without tag (defaults to `<registry>/<owner>/<repo>`). |
+| `build_args` | no | Extra build args appended to the defaults. |
+| `context` | no | Build context path (defaults to `.`). |
+| `dockerfile` | no | Dockerfile path, repo-root relative (defaults to `<context>/Dockerfile`). |
+| `push` | no | Set to `false` to build without pushing (skips the merge job). |
+| `ref` | no | Ref to check out and build. |
+| `registry` | no | Target registry (defaults to `ghcr.io`). |
+| `registry_username` | no | Registry login username (defaults to the repository owner). |
+| `runners` | no | JSON array of `{platform, runner}` pairs, one native build each. |
+
+| Secret | Required | Description |
+|---|---|---|
+| `registry_password` | no | Registry login password/token. Defaults to `GITHUB_TOKEN`, which is all `ghcr.io` needs. |
+| `DD_API_KEY` | no | Forwarded as a build arg, as in `docker-build.yml`. |
+
+| Output | Description |
+|---|---|
+| `image` | Fully qualified multi-arch image name with tag. |
+| `base` | Image base name (no tag). |
+| `tag` | Computed tag/version. |
+
+```yaml
+jobs:
+  build:
+    uses: fabn/workflows/.github/workflows/docker-build-multi.yml@v1
+    secrets: inherit
+```
+
+To push somewhere other than `ghcr.io`, point `registry` (and usually
+`image_name`) at it and pass credentials — any registry that accepts a static
+username/password or token login works:
+
+```yaml
+jobs:
+  build:
+    uses: fabn/workflows/.github/workflows/docker-build-multi.yml@v1
+    with:
+      registry: quay.io
+      registry_username: myorg+ci
+      image_name: quay.io/myorg/myapp
+    secrets:
+      registry_password: ${{ secrets.QUAY_TOKEN }}
+```
+
 ### `deploy-restart.yml`
 
 `kubectl rollout restart` on a DigitalOcean Kubernetes deployment, waits for

@@ -1,0 +1,41 @@
+name: docker-build-multi smoke test
+
+# Exercises the docker-build-multi reusable workflow end to end by actually
+# calling it: each platform builds natively on its own runner (amd64 on
+# ubuntu-latest, arm64 on ubuntu-24.04-arm). Every call runs with
+# `push: false`, so the smoke test never writes to the registry and needs no
+# write permissions; the merge job is skipped since there are no pushed
+# digests to merge.
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/docker-build-multi.yml
+      - .github/workflows/docker-build-multi-test.yml
+      - Dockerfile
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/docker-build-multi.yml
+      - .github/workflows/docker-build-multi-test.yml
+      - Dockerfile
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-default:
+    name: Build both platforms natively
+    uses: ./.github/workflows/docker-build-multi.yml
+    with:
+      push: false
+    secrets: inherit
+
+  build-custom-runners:
+    name: Build a single platform via runners override
+    uses: ./.github/workflows/docker-build-multi.yml
+    with:
+      push: false
+      runners: '[{"platform": "linux/amd64", "runner": "ubuntu-latest"}]'
+    secrets: inherit
