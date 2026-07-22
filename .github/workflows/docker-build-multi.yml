@@ -59,6 +59,25 @@ on:
         default: >-
           [{"platform": "linux/amd64", "runner": "ubuntu-latest"},
            {"platform": "linux/arm64", "runner": "ubuntu-24.04-arm"}]
+      cache_from:
+        description: >-
+          buildx cache-from source. Empty (default) => the per-platform GHA
+          cache (type=gha,scope=<platform>). Override verbatim for a different
+          backend (e.g. a registry cache).
+        required: false
+        type: string
+        default: ''
+      cache_to:
+        description: >-
+          buildx cache-to target. Empty (default) => the per-platform GHA cache
+          with ignore-error
+          (type=gha,mode=max,scope=<platform>,ignore-error=true) so a flaky or
+          concurrently-racing cache export never fails the build — the image is
+          already built and pushed by then. Override verbatim for a different
+          backend, or set to 'type=inline' / '' handling as needed.
+        required: false
+        type: string
+        default: ''
     secrets:
       registry_password:
         description: >-
@@ -131,8 +150,12 @@ jobs:
             DD_API_KEY=${{ secrets.DD_API_KEY }}
             DD_GIT_REPOSITORY_URL=${{ github.repositoryUrl }}
             DD_GIT_COMMIT_SHA=${{ github.sha }}
-          cache-from: type=gha,scope=${{ env.PLATFORM_PAIR }}
-          cache-to: type=gha,mode=max,scope=${{ env.PLATFORM_PAIR }}
+          # Default to the per-platform GHA cache; ignore-error on export so a
+          # flaky or concurrently-racing "failed to reserve cache" never fails
+          # the build (the image is already built/pushed by then). An explicit
+          # input overrides verbatim (e.g. a registry cache).
+          cache-from: ${{ inputs.cache_from != '' && inputs.cache_from || format('type=gha,scope={0}', env.PLATFORM_PAIR) }}
+          cache-to: ${{ inputs.cache_to != '' && inputs.cache_to || format('type=gha,mode=max,scope={0},ignore-error=true', env.PLATFORM_PAIR) }}
       - name: Export digest
         if: ${{ inputs.push }}
         env:
