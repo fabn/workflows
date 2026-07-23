@@ -93,6 +93,13 @@ on:
         required: false
         type: string
         default: ''
+    secrets:
+      SOPS_AGE_KEY:
+        description: >-
+          SOPS age key. When present, SOPS is installed and the key is exported
+          so the Terraform providers can decrypt secrets during the run. Declared
+          so it populates through `secrets: inherit`.
+        required: false
 
 # The OIDC role assumption needs id-token: write; workflow_call runs inherit the
 # caller's grants, so the caller workflow must also grant it.
