@@ -153,9 +153,10 @@ from the repository name. Resolution is **input → variable → convention**:
 | `environment_name` | no | GitHub Environment for the deployments tab, environment-scoped vars/secrets, and the OIDC sub claim. |
 | `environment_url` | no | URL shown on the GitHub Environment. |
 
-Map `SOPS_AGE_KEY` through explicitly (see the examples). `secrets: inherit`
-does **not** reach a reusable job that sets a GitHub Environment, so when you use
-`environment_name` the secret must be passed directly. The caller workflow must
+Map `SOPS_AGE_KEY` through explicitly (see the examples), by name — **not**
+`secrets: inherit`. `inherit` only passes secrets when the caller and the
+reusable are in the **same organization or enterprise**; this repo is consumable
+from other accounts, where `inherit` is a silent no-op. The caller workflow must
 grant `permissions: { id-token: write, contents: read }`, and the assumed role's
 trust policy must permit the caller's OIDC subject (the branch ref, or
 `environment:<name>` when `environment_name` is set).
