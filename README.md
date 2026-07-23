@@ -153,10 +153,12 @@ from the repository name. Resolution is **input → variable → convention**:
 | `environment_name` | no | GitHub Environment for the deployments tab, environment-scoped vars/secrets, and the OIDC sub claim. |
 | `environment_url` | no | URL shown on the GitHub Environment. |
 
-Pass secrets with `secrets: inherit` — the workflow reads `SOPS_AGE_KEY` by
-name. The caller workflow must grant `permissions: { id-token: write, contents:
-read }`, and the assumed role's trust policy must permit the caller's OIDC
-subject (the branch ref, or `environment:<name>` when `environment_name` is set).
+Map `SOPS_AGE_KEY` through explicitly (see the examples). `secrets: inherit`
+does **not** reach a reusable job that sets a GitHub Environment, so when you use
+`environment_name` the secret must be passed directly. The caller workflow must
+grant `permissions: { id-token: write, contents: read }`, and the assumed role's
+trust policy must permit the caller's OIDC subject (the branch ref, or
+`environment:<name>` when `environment_name` is set).
 
 Set these once so callers can stay minimal:
 
@@ -174,7 +176,8 @@ permissions:
 jobs:
   deploy:
     uses: fabn/workflows/.github/workflows/eks-terraform-apply.yml@v1
-    secrets: inherit
+    secrets:
+      SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
     with:
       environment: staging
       image_tag: ${{ needs.build.outputs.tag }}
@@ -187,7 +190,8 @@ explicit GitHub Environment, a one-off region):
 jobs:
   deploy:
     uses: fabn/workflows/.github/workflows/eks-terraform-apply.yml@v1
-    secrets: inherit
+    secrets:
+      SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
     with:
       environment: staging
       image_tag: ${{ needs.build.outputs.tag }}

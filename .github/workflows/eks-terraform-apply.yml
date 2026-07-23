@@ -22,9 +22,10 @@
 #   working_directory = inputs.working_directory || infra/<environment>
 #   state_namespace   = inputs.state_namespace   || <repo>-terraform
 #
-# SOPS is installed only when a SOPS_AGE_KEY secret is visible (pass it with
-# `secrets: inherit`); it is exported so the Terraform providers can decrypt
-# secrets during the run. `image_tag` is exposed to Terraform as TF_VAR_image_tag.
+# SOPS is installed only when a SOPS_AGE_KEY secret is visible (map it in the
+# caller's `secrets:` block — a reusable job that sets an `environment` does not
+# receive `secrets: inherit`); it is exported so the Terraform providers can
+# decrypt secrets during the run. `image_tag` is exposed as TF_VAR_image_tag.
 name: Terraform Apply (EKS)
 
 on:
@@ -97,8 +98,9 @@ on:
       SOPS_AGE_KEY:
         description: >-
           SOPS age key. When present, SOPS is installed and the key is exported
-          so the Terraform providers can decrypt secrets during the run. Declared
-          so it populates through `secrets: inherit`.
+          so the Terraform providers can decrypt secrets during the run. Map it
+          in the caller's `secrets:` block; a reusable job that sets an
+          `environment` does not receive `secrets: inherit`.
         required: false
 
 # The OIDC role assumption needs id-token: write; workflow_call runs inherit the
