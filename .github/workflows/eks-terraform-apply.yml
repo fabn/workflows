@@ -2,75 +2,97 @@
 # downstream repository, using GitHub OIDC (no long-lived AWS credentials) and
 # an in-cluster kubernetes state backend.
 #
-# Everything environment-specific is a caller input — the IAM role, region,
-# cluster, working directory, the state namespace, the image tag, and the
-# optional GitHub Environment — so this workflow carries nothing tied to any
-# particular deployment.
+# Convention over configuration: only `environment` and `image_tag` are usually
+# passed. Everything else falls back to organization/repository variables and to
+# conventions derived from the repository name, so a caller is typically:
 #
-# What it does, in order: assume the caller's OIDC role, write a kubeconfig for
-# the target EKS cluster, (optionally) ensure the state-backend namespace
-# exists, then `terraform init` + `apply` (or `plan` when apply=false). SOPS is
-# installed only when an age key is provided, so a root that decrypts secrets
-# during the apply works out of the box.
+#   jobs:
+#     deploy:
+#       uses: fabn/workflows/.github/workflows/eks-terraform-apply.yml@v1
+#       secrets: inherit
+#       with:
+#         environment: staging
+#         image_tag: ${{ needs.build.outputs.tag }}
+#
+# Resolution (input beats variable beats convention):
+#   aws_role_arn      = inputs.aws_role_arn  || vars.DEPLOY_ROLE_ARN
+#   aws_region        = inputs.aws_region    || vars.AWS_REGION
+#   cluster_name      = inputs.cluster_name  || vars.EKS_CLUSTER
+#   terraform_version = inputs.terraform_version || vars.TERRAFORM_VERSION || latest
+#   working_directory = inputs.working_directory || infra/<environment>
+#   state_namespace   = inputs.state_namespace   || <repo>-terraform
+#
+# SOPS is installed only when a SOPS_AGE_KEY secret is visible (pass it with
+# `secrets: inherit`); it is exported so the Terraform providers can decrypt
+# secrets during the run. `image_tag` is exposed to Terraform as TF_VAR_image_tag.
 name: Terraform Apply (EKS)
 
 on:
   workflow_call:
     inputs:
-      aws_role_arn:
-        description: IAM role to assume via GitHub OIDC.
-        required: true
-        type: string
-      aws_region:
-        description: AWS region for the credentials and the cluster.
-        required: true
-        type: string
-      cluster_name:
-        description: EKS cluster name, passed to `aws eks update-kubeconfig`.
-        required: true
-        type: string
-      working_directory:
-        description: Path to the Terraform root to apply.
-        required: true
-        type: string
-      state_namespace:
+      environment:
         description: >-
-          Kubernetes namespace for the in-cluster Terraform state backend.
-          Created (server-side apply, idempotent) before init when set; leave
-          empty for roots whose backend is not in-cluster.
-        required: false
+          Logical environment (e.g. staging, production). Drives the default
+          working directory (infra/<environment>) and serializes applies per
+          repo+environment. This is NOT the GitHub Environment — see
+          environment_name.
+        required: true
         type: string
-        default: ''
-      terraform_version:
-        description: Terraform version for setup-terraform.
-        required: false
-        type: string
-        default: latest
       image_tag:
         description: Image tag to deploy, exposed to Terraform as TF_VAR_image_tag.
         required: false
         type: string
         default: latest
-      environment_name:
-        description: Optional GitHub Environment to attach the run to.
-        required: false
-        type: string
-      environment_url:
-        description: Optional URL shown on the GitHub Environment.
-        required: false
-        type: string
       apply:
         description: Apply when true; run a read-only `terraform plan` when false.
         required: false
         type: boolean
         default: true
-    secrets:
-      sops_age_key:
-        description: >-
-          Optional SOPS age key. When provided, SOPS is installed and exported
-          as SOPS_AGE_KEY so the Terraform providers can decrypt secrets during
-          the run.
+      # --- Optional overrides; default to org/repo variables or conventions ---
+      aws_role_arn:
+        description: 'IAM role to assume via OIDC. Default: vars.DEPLOY_ROLE_ARN.'
         required: false
+        type: string
+        default: ''
+      aws_region:
+        description: 'AWS region. Default: vars.AWS_REGION.'
+        required: false
+        type: string
+        default: ''
+      cluster_name:
+        description: 'EKS cluster name for update-kubeconfig. Default: vars.EKS_CLUSTER.'
+        required: false
+        type: string
+        default: ''
+      terraform_version:
+        description: 'Terraform version. Default: vars.TERRAFORM_VERSION, else latest.'
+        required: false
+        type: string
+        default: ''
+      working_directory:
+        description: 'Terraform root. Default: infra/<environment>.'
+        required: false
+        type: string
+        default: ''
+      state_namespace:
+        description: >-
+          Kubernetes namespace for the in-cluster state backend, created before
+          init. Default: <repo>-terraform. Set to "-" to skip creation.
+        required: false
+        type: string
+        default: ''
+      environment_name:
+        description: >-
+          GitHub Environment to attach the run to (deployments tab, environment
+          -scoped variables/secrets, and the OIDC sub claim). Empty = none.
+        required: false
+        type: string
+        default: ''
+      environment_url:
+        description: Optional URL shown on the GitHub Environment.
+        required: false
+        type: string
+        default: ''
 
 # The OIDC role assumption needs id-token: write; workflow_call runs inherit the
 # caller's grants, so the caller workflow must also grant it.
@@ -86,20 +108,22 @@ jobs:
     environment:
       name: ${{ inputs.environment_name }}
       url: ${{ inputs.environment_url }}
-    # Serialize runs that target the same state (cluster + namespace + root) so
-    # the Lease-locked backend never sees concurrent applies. Never cancel a
+    # Serialize runs that target the same state (one root per repo+environment)
+    # so the Lease-locked backend never sees concurrent applies. Never cancel a
     # run in flight.
     concurrency:
-      group: eks-terraform-${{ inputs.cluster_name }}-${{ inputs.state_namespace }}-${{ inputs.working_directory }}
+      group: eks-terraform-${{ github.repository }}-${{ inputs.environment }}
       cancel-in-progress: false
     defaults:
       run:
-        working-directory: ${{ inputs.working_directory }}
+        working-directory: ${{ inputs.working_directory || format('infra/{0}', inputs.environment) }}
     env:
       TF_INPUT: 0
       TF_IN_AUTOMATION: 1
-      SOPS_AGE_KEY: ${{ secrets.sops_age_key }}
+      SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
       TF_VAR_image_tag: ${{ inputs.image_tag }}
+      AWS_REGION: ${{ inputs.aws_region || vars.AWS_REGION }}
+      STATE_NAMESPACE: ${{ inputs.state_namespace || format('{0}-terraform', github.event.repository.name) }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -111,23 +135,23 @@ jobs:
       - name: Assume the deploy role
         uses: aws-actions/configure-aws-credentials@v6
         with:
-          role-to-assume: ${{ inputs.aws_role_arn }}
-          aws-region: ${{ inputs.aws_region }}
+          role-to-assume: ${{ inputs.aws_role_arn || vars.DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
 
       # Providers and the in-cluster state backend all read ~/.kube/config.
       - name: Write kubeconfig
-        run: aws eks update-kubeconfig --name ${{ inputs.cluster_name }}
+        run: aws eks update-kubeconfig --name ${{ inputs.cluster_name || vars.EKS_CLUSTER }}
 
       # The state namespace must exist before init. Server-side apply keeps this
-      # idempotent across runs.
+      # idempotent. Skip when set to "-".
       - name: Ensure the state namespace exists
-        if: ${{ inputs.state_namespace != '' }}
-        run: kubectl create namespace ${{ inputs.state_namespace }} --dry-run=client -o yaml | kubectl apply --server-side -f -
+        if: ${{ env.STATE_NAMESPACE != '-' }}
+        run: kubectl create namespace "$STATE_NAMESPACE" --dry-run=client -o yaml | kubectl apply --server-side -f -
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v4
         with:
-          terraform_version: ${{ inputs.terraform_version }}
+          terraform_version: ${{ inputs.terraform_version || vars.TERRAFORM_VERSION || 'latest' }}
           terraform_wrapper: false
 
       - name: Terraform init
