@@ -2,7 +2,8 @@
 
 Reusable GitHub Actions workflows and composite actions I use across my projects:
 generic Docker builds for `ghcr.io`, Kubernetes deployments on DigitalOcean via
-`doctl`, and deployment markers for New Relic and Rollbar.
+`doctl` and on AWS EKS via Terraform + OIDC, and deployment markers for New
+Relic and Rollbar.
 
 Pin to the major tag (`@v1`) in production, or `@main` if you like living
 dangerously.
@@ -114,6 +115,86 @@ jobs:
       image_name: quay.io/myorg/myapp
     secrets:
       registry_password: ${{ secrets.QUAY_TOKEN }}
+```
+
+### `eks-terraform-apply.yml`
+
+Applies a Terraform root against an **AWS EKS** cluster using **GitHub OIDC**
+(no long-lived AWS credentials) and an in-cluster kubernetes state backend.
+Assumes a role, writes a kubeconfig, ensures the state namespace, then
+`terraform init` + `apply` (or a read-only `plan`). SOPS is installed when a
+`SOPS_AGE_KEY` secret is visible, so a root that decrypts secrets during the
+apply works out of the box.
+
+Convention over configuration: a caller usually passes only `environment` and
+`image_tag`; everything else resolves from organization/repository variables or
+from the repository name. Resolution is **input → variable → convention**:
+
+| Value | Input | Variable | Convention |
+|---|---|---|---|
+| Deploy role ARN | `aws_role_arn` | `vars.DEPLOY_ROLE_ARN` | — |
+| AWS region | `aws_region` | `vars.AWS_REGION` | — |
+| EKS cluster | `cluster_name` | `vars.EKS_CLUSTER` | — |
+| Terraform version | `terraform_version` | `vars.TERRAFORM_VERSION` | `latest` |
+| Terraform root | `working_directory` | — | `infra/<environment>` |
+| State namespace | `state_namespace` | — | `<repo>-terraform` |
+
+| Input | Required | Description |
+|---|---|---|
+| `environment` | yes | Logical env (e.g. `staging`). Drives `infra/<environment>`, the concurrency group, and the GitHub Environment `<repo>-<environment>` (deployments tab + OIDC sub `environment:<repo>-<environment>`). |
+| `image_tag` | no | Exposed to Terraform as `TF_VAR_image_tag` (defaults to `latest`). |
+| `apply` | no | `false` runs a read-only `terraform plan`. |
+| `aws_role_arn`, `aws_region`, `cluster_name`, `terraform_version` | no | Override the variables above. |
+| `working_directory`, `state_namespace` | no | Override the conventions above (`-` on `state_namespace` skips creation). |
+| `environment_url` | no | URL shown on the GitHub Environment. |
+
+Map `SOPS_AGE_KEY` through explicitly (see the examples), by name — **not**
+`secrets: inherit`. `inherit` only passes secrets when the caller and the
+reusable are in the **same organization or enterprise**; this repo is consumable
+from other accounts, where `inherit` is a silent no-op. The caller workflow must
+grant `permissions: { id-token: write, contents: read }`. The run always
+attaches to a GitHub Environment named `<repo>-<environment>`, so the assumed
+role's trust policy must permit the OIDC subject
+`environment:<repo>-<environment>` (a `environment:<repo>-*` subject covers all
+of a repo's environments).
+
+Set these once so callers can stay minimal:
+
+- **Organization variables:** `AWS_REGION`, `EKS_CLUSTER`, `TERRAFORM_VERSION`.
+- **Repository variable:** `DEPLOY_ROLE_ARN` (each repo's own OIDC role).
+- **Organization (or repository) secret:** `SOPS_AGE_KEY`.
+
+Minimal caller — conventions do the rest (`infra/staging` root,
+`<repo>-terraform` state namespace, role/region/cluster/version from variables):
+
+```yaml
+permissions:
+  id-token: write
+  contents: read
+jobs:
+  deploy:
+    uses: fabn/workflows/.github/workflows/eks-terraform-apply.yml@v1
+    secrets:
+      SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
+    with:
+      environment: staging
+      image_tag: ${{ needs.build.outputs.tag }}
+```
+
+Overriding when a repo doesn't follow the conventions (a different root path, a
+deployments-tab URL, a one-off region):
+
+```yaml
+jobs:
+  deploy:
+    uses: fabn/workflows/.github/workflows/eks-terraform-apply.yml@v1
+    secrets:
+      SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
+    with:
+      environment: staging
+      image_tag: ${{ needs.build.outputs.tag }}
+      working_directory: infra/staging-eks
+      environment_url: https://staging.example.com
 ```
 
 ### `deploy-restart.yml`
