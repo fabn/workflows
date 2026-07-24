@@ -34,10 +34,11 @@ on:
     inputs:
       environment:
         description: >-
-          Logical environment (e.g. staging, production). Drives the default
-          working directory (infra/<environment>) and serializes applies per
-          repo+environment. This is NOT the GitHub Environment — see
-          environment_name.
+          Logical environment (e.g. staging, production). Drives the Terraform
+          root (infra/<environment>), the concurrency group, and the GitHub
+          Environment the run attaches to — named <repo>-<environment> (the
+          deployments tab, environment-scoped vars/secrets, and the OIDC sub
+          claim environment:<repo>-<environment>).
         required: true
         type: string
       image_tag:
@@ -83,13 +84,6 @@ on:
         required: false
         type: string
         default: ''
-      environment_name:
-        description: >-
-          GitHub Environment to attach the run to (deployments tab, environment
-          -scoped variables/secrets, and the OIDC sub claim). Empty = none.
-        required: false
-        type: string
-        default: ''
       environment_url:
         description: Optional URL shown on the GitHub Environment.
         required: false
@@ -116,8 +110,10 @@ jobs:
     name: terraform ${{ inputs.apply && 'apply' || 'plan' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    # The GitHub Environment is derived from the logical environment as
+    # <repo>-<environment> (matches the environment:<repo>-* OIDC trust subject).
     environment:
-      name: ${{ inputs.environment_name }}
+      name: ${{ format('{0}-{1}', github.event.repository.name, inputs.environment) }}
       url: ${{ inputs.environment_url }}
     # Serialize runs that target the same state (one root per repo+environment)
     # so the Lease-locked backend never sees concurrent applies. Never cancel a

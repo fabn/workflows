@@ -145,21 +145,22 @@ from the repository name. Resolution is **input → variable → convention**:
 
 | Input | Required | Description |
 |---|---|---|
-| `environment` | yes | Logical env (e.g. `staging`). Drives `infra/<environment>` and serializes applies per repo+env. Not the GitHub Environment. |
+| `environment` | yes | Logical env (e.g. `staging`). Drives `infra/<environment>`, the concurrency group, and the GitHub Environment `<repo>-<environment>` (deployments tab + OIDC sub `environment:<repo>-<environment>`). |
 | `image_tag` | no | Exposed to Terraform as `TF_VAR_image_tag` (defaults to `latest`). |
 | `apply` | no | `false` runs a read-only `terraform plan`. |
 | `aws_role_arn`, `aws_region`, `cluster_name`, `terraform_version` | no | Override the variables above. |
 | `working_directory`, `state_namespace` | no | Override the conventions above (`-` on `state_namespace` skips creation). |
-| `environment_name` | no | GitHub Environment for the deployments tab, environment-scoped vars/secrets, and the OIDC sub claim. |
 | `environment_url` | no | URL shown on the GitHub Environment. |
 
 Map `SOPS_AGE_KEY` through explicitly (see the examples), by name — **not**
 `secrets: inherit`. `inherit` only passes secrets when the caller and the
 reusable are in the **same organization or enterprise**; this repo is consumable
 from other accounts, where `inherit` is a silent no-op. The caller workflow must
-grant `permissions: { id-token: write, contents: read }`, and the assumed role's
-trust policy must permit the caller's OIDC subject (the branch ref, or
-`environment:<name>` when `environment_name` is set).
+grant `permissions: { id-token: write, contents: read }`. The run always
+attaches to a GitHub Environment named `<repo>-<environment>`, so the assumed
+role's trust policy must permit the OIDC subject
+`environment:<repo>-<environment>` (a `environment:<repo>-*` subject covers all
+of a repo's environments).
 
 Set these once so callers can stay minimal:
 
@@ -184,8 +185,8 @@ jobs:
       image_tag: ${{ needs.build.outputs.tag }}
 ```
 
-Overriding when a repo doesn't follow the conventions (a different root path, an
-explicit GitHub Environment, a one-off region):
+Overriding when a repo doesn't follow the conventions (a different root path, a
+deployments-tab URL, a one-off region):
 
 ```yaml
 jobs:
@@ -197,7 +198,6 @@ jobs:
       environment: staging
       image_tag: ${{ needs.build.outputs.tag }}
       working_directory: infra/staging-eks
-      environment_name: my-app-staging
       environment_url: https://staging.example.com
 ```
 
