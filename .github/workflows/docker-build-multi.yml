@@ -84,9 +84,6 @@ on:
           Password or token used to login to the registry. Defaults to
           GITHUB_TOKEN, which is all ghcr.io needs.
         required: false
-      DD_API_KEY:
-        description: Optional Datadog API key forwarded as a build arg
-        required: false
     outputs:
       image:
         description: Built multi-arch image name (base:tag)
@@ -147,7 +144,6 @@ jobs:
             APP_DIST=${{ github.sha }}
             BRANCH=${{ github.event_name == 'pull_request' && github.event.pull_request.head.ref || github.ref_name }}
             SHA=${{ github.sha }}
-            DD_API_KEY=${{ secrets.DD_API_KEY }}
             DD_GIT_REPOSITORY_URL=${{ github.repositoryUrl }}
             DD_GIT_COMMIT_SHA=${{ github.sha }}
           # Default to the per-platform GHA cache; ignore-error on export so a

@@ -14,7 +14,7 @@ dangerously.
 Builds and pushes a Docker image to `ghcr.io/<owner>/<repo>` with sensible tags
 (branch+sha, tag, `latest` on default branch) and GHA layer caching. Passes
 several build args automatically (`APP_REVISION`, `APP_DIST`, `BRANCH`, `SHA`,
-`DD_GIT_*`) and `DD_API_KEY` if you set the secret.
+`DD_GIT_*`).
 
 | Input | Required | Description |
 |---|---|---|
@@ -27,9 +27,6 @@ several build args automatically (`APP_REVISION`, `APP_DIST`, `BRANCH`, `SHA`,
 | `image` | Fully qualified image name with tag. |
 | `base` | Image base name (no tag). |
 | `tag` | Computed tag/version. |
-
-Secrets: `DD_API_KEY` is read implicitly via `secrets: inherit`. Omit if you
-don't use Datadog.
 
 ```yaml
 jobs:
@@ -64,7 +61,6 @@ see the example below). Same automatic build args as
 | Secret | Required | Description |
 |---|---|---|
 | `registry_password` | no | Registry login password/token. Defaults to `GITHUB_TOKEN`, which is all `ghcr.io` needs. |
-| `DD_API_KEY` | no | Forwarded as a build arg, as in `docker-build.yml`. |
 
 | Output | Description |
 |---|---|
