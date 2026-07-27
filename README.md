@@ -120,11 +120,11 @@ jobs:
 ### `eks-terraform-apply.yml`
 
 Applies a Terraform root against an **AWS EKS** cluster using **GitHub OIDC**
-(no long-lived AWS credentials) and an in-cluster kubernetes state backend.
-Assumes a role, writes a kubeconfig, ensures the state namespace, then
-`terraform init` + `apply` (or a read-only `plan`). SOPS is installed when a
-`SOPS_AGE_KEY` secret is visible, so a root that decrypts secrets during the
-apply works out of the box.
+(no long-lived AWS credentials). Assumes a role, writes a kubeconfig, then
+`terraform init` + `apply` (or a read-only `plan`). The state backend is
+configured by the root itself (S3) — the assumed role needs access to the state
+bucket. SOPS is installed when a `SOPS_AGE_KEY` secret is visible, so a root
+that decrypts secrets during the apply works out of the box.
 
 Convention over configuration: a caller usually passes only `environment` and
 `image_tag`; everything else resolves from organization/repository variables or
@@ -137,7 +137,6 @@ from the repository name. Resolution is **input → variable → convention**:
 | EKS cluster | `cluster_name` | `vars.EKS_CLUSTER` | — |
 | Terraform version | `terraform_version` | `vars.TERRAFORM_VERSION` | `latest` |
 | Terraform root | `working_directory` | — | `infra/<environment>` |
-| State namespace | `state_namespace` | — | `<repo>-terraform` |
 
 | Input | Required | Description |
 |---|---|---|
@@ -145,7 +144,7 @@ from the repository name. Resolution is **input → variable → convention**:
 | `image_tag` | no | Exposed to Terraform as `TF_VAR_image_tag` (defaults to `latest`). |
 | `apply` | no | `false` runs a read-only `terraform plan`. |
 | `aws_role_arn`, `aws_region`, `cluster_name`, `terraform_version` | no | Override the variables above. |
-| `working_directory`, `state_namespace` | no | Override the conventions above (`-` on `state_namespace` skips creation). |
+| `working_directory` | no | Override the convention above. |
 | `environment_url` | no | URL shown on the GitHub Environment. |
 
 Map `SOPS_AGE_KEY` through explicitly (see the examples), by name — **not**
@@ -165,7 +164,7 @@ Set these once so callers can stay minimal:
 - **Organization (or repository) secret:** `SOPS_AGE_KEY`.
 
 Minimal caller — conventions do the rest (`infra/staging` root,
-`<repo>-terraform` state namespace, role/region/cluster/version from variables):
+role/region/cluster/version from variables):
 
 ```yaml
 permissions:
