@@ -21,6 +21,7 @@
 #   cluster_name      = inputs.cluster_name  || vars.EKS_CLUSTER
 #   terraform_version = inputs.terraform_version || vars.TERRAFORM_VERSION || latest
 #   working_directory = inputs.working_directory || infra/<environment>
+#   environment_name  = inputs.environment_name  || <repo>-<environment>
 #
 # SOPS is installed only when a SOPS_AGE_KEY secret is visible. Map it by name in
 # the caller's `secrets:` block, not via `secrets: inherit` — inherit only passes
@@ -36,9 +37,9 @@ on:
         description: >-
           Logical environment (e.g. staging, production). Drives the Terraform
           root (infra/<environment>), the concurrency group, and the GitHub
-          Environment the run attaches to — named <repo>-<environment> (the
-          deployments tab, environment-scoped vars/secrets, and the OIDC sub
-          claim environment:<repo>-<environment>).
+          Environment the run attaches to — named <repo>-<environment> unless
+          environment_name overrides it (the deployments tab, environment-scoped
+          vars/secrets, and the OIDC sub claim environment:<name>).
         required: true
         type: string
       image_tag:
@@ -77,6 +78,17 @@ on:
         required: false
         type: string
         default: ''
+      environment_name:
+        description: >-
+          GitHub Environment to attach the run to, replacing the derived
+          <repo>-<environment>. Set this when the repository is not named after
+          the application it deploys — otherwise the OIDC sub claim ends up
+          keyed on the repository's name, which is not what the trust policy is
+          usually written against, and the mismatch surfaces only as an opaque
+          "Not authorized to perform sts:AssumeRoleWithWebIdentity".
+        required: false
+        type: string
+        default: ''
       environment_url:
         description: Optional URL shown on the GitHub Environment.
         required: false
@@ -103,10 +115,13 @@ jobs:
     name: terraform ${{ inputs.apply && 'apply' || 'plan' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    # The GitHub Environment is derived from the logical environment as
-    # <repo>-<environment> (matches the environment:<repo>-* OIDC trust subject).
+    # Derived from the logical environment as <repo>-<environment>, which matches
+    # the environment:<repo>-* OIDC trust subject — unless environment_name
+    # overrides it. The convention assumes the repository is named after the
+    # application it deploys; where it is not, the derived name silently keys the
+    # OIDC sub claim on the repository's name instead.
     environment:
-      name: ${{ format('{0}-{1}', github.event.repository.name, inputs.environment) }}
+      name: ${{ inputs.environment_name != '' && inputs.environment_name || format('{0}-{1}', github.event.repository.name, inputs.environment) }}
       url: ${{ inputs.environment_url }}
     # Serialize runs that target the same state (one root per repo+environment)
     # so the backend never sees concurrent applies. Never cancel a run in
