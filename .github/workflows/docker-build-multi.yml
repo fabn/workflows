@@ -62,8 +62,8 @@ on:
       cache_from:
         description: >-
           buildx cache-from source. Empty (default) => the per-platform GHA
-          cache (type=gha,scope=<platform>). Override verbatim for a different
-          backend (e.g. a registry cache).
+          cache (type=gha,scope=<image>-<platform>). Override verbatim for a
+          different backend (e.g. a registry cache).
         required: false
         type: string
         default: ''
@@ -71,7 +71,7 @@ on:
         description: >-
           buildx cache-to target. Empty (default) => the per-platform GHA cache
           with ignore-error
-          (type=gha,mode=max,scope=<platform>,ignore-error=true) so a flaky or
+          (type=gha,mode=max,scope=<image>-<platform>,ignore-error=true) so a flaky or
           concurrently-racing cache export never fails the build — the image is
           already built and pushed by then. Override verbatim for a different
           backend, or set to 'type=inline' / '' handling as needed.
@@ -110,12 +110,20 @@ jobs:
       - uses: actions/checkout@v7
         with:
           ref: ${{ inputs.ref }}
-      - name: Sanitize platform name
-        # linux/arm64 -> linux-arm64, slashes are invalid in artifact names
-        # and cache scopes
+      - name: Sanitize platform and image names
+        # Slashes and colons are invalid in artifact names, and a comma (a
+        # runners entry can carry several platforms for a single cross-build
+        # job) would be read as the separator of the next buildx cache option.
+        # The image slug scopes artifacts and cache per image, so a workflow
+        # run can call this reusable once per image without the digest
+        # artifacts colliding or the caches overwriting each other.
         env:
           PLATFORM: ${{ matrix.platform }}
-        run: echo "PLATFORM_PAIR=${PLATFORM//\//-}" >> "$GITHUB_ENV"
+        run: |
+          {
+            echo "PLATFORM_PAIR=$(echo "$PLATFORM" | tr '/,' '--')"
+            echo "IMAGE_SLUG=$(echo "$image_base" | tr '/:' '--')"
+          } >> "$GITHUB_ENV"
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
       - name: Login to registry
@@ -150,8 +158,8 @@ jobs:
           # flaky or concurrently-racing "failed to reserve cache" never fails
           # the build (the image is already built/pushed by then). An explicit
           # input overrides verbatim (e.g. a registry cache).
-          cache-from: ${{ inputs.cache_from != '' && inputs.cache_from || format('type=gha,scope={0}', env.PLATFORM_PAIR) }}
-          cache-to: ${{ inputs.cache_to != '' && inputs.cache_to || format('type=gha,mode=max,scope={0},ignore-error=true', env.PLATFORM_PAIR) }}
+          cache-from: ${{ inputs.cache_from != '' && inputs.cache_from || format('type=gha,scope={0}-{1}', env.IMAGE_SLUG, env.PLATFORM_PAIR) }}
+          cache-to: ${{ inputs.cache_to != '' && inputs.cache_to || format('type=gha,mode=max,scope={0}-{1},ignore-error=true', env.IMAGE_SLUG, env.PLATFORM_PAIR) }}
       - name: Export digest
         if: ${{ inputs.push }}
         env:
@@ -163,7 +171,8 @@ jobs:
         if: ${{ inputs.push }}
         uses: actions/upload-artifact@v7
         with:
-          name: digests-${{ env.PLATFORM_PAIR }}
+          # Scoped by image too: a single workflow run can build more than one
+          name: digests-${{ env.IMAGE_SLUG }}-${{ env.PLATFORM_PAIR }}
           path: ${{ runner.temp }}/digests/*
           if-no-files-found: error
           retention-days: 1
@@ -183,11 +192,13 @@ jobs:
       - uses: actions/checkout@v7
         with:
           ref: ${{ inputs.ref }}
+      - name: Compute image slug
+        run: echo "IMAGE_SLUG=$(echo "$image_base" | tr '/:' '--')" >> "$GITHUB_ENV"
       - name: Download digests
         uses: actions/download-artifact@v8
         with:
           path: ${{ runner.temp }}/digests
-          pattern: digests-*
+          pattern: digests-${{ env.IMAGE_SLUG }}-*
           merge-multiple: true
       - name: Docker meta
         id: meta

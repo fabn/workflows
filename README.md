@@ -76,6 +76,29 @@ jobs:
     secrets: inherit
 ```
 
+**Building several images in one run.** The digest artifacts and the default
+buildx cache scope are keyed by `image_name` as well as by platform, so the
+workflow can be called more than once in the same workflow run — one call per
+image — without the uploads colliding, the manifest lists mixing digests, or
+the images overwriting each other's cache. Give each call a distinct
+`image_name`:
+
+```yaml
+jobs:
+  backend:
+    uses: fabn/workflows/.github/workflows/docker-build-multi.yml@v1
+    with:
+      image_name: ghcr.io/myorg/myapp-backend
+      dockerfile: backend/Dockerfile
+    secrets: inherit
+  frontend:
+    uses: fabn/workflows/.github/workflows/docker-build-multi.yml@v1
+    with:
+      image_name: ghcr.io/myorg/myapp-frontend
+      dockerfile: frontend/Dockerfile
+    secrets: inherit
+```
+
 **Calling from a private repository.** GitHub's `ubuntu-24.04-arm` runner is
 only available (free) on public repositories: on a private one the arm64 job
 would sit queued forever waiting for a runner that never picks it up. Pass
