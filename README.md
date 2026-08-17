@@ -53,6 +53,7 @@ see the example below). Same automatic build args as
 | `build_args` | no | Extra build args appended to the defaults. |
 | `context` | no | Build context path (defaults to `.`). |
 | `dockerfile` | no | Dockerfile path, repo-root relative (defaults to `<context>/Dockerfile`). |
+| `target` | no | Dockerfile stage to build (defaults to the last stage in the file). |
 | `push` | no | Set to `false` to build without pushing (skips the merge job). |
 | `ref` | no | Ref to check out and build. |
 | `registry` | no | Target registry (defaults to `ghcr.io`). |
