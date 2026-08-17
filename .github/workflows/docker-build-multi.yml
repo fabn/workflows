@@ -84,6 +84,14 @@ on:
           Password or token used to login to the registry. Defaults to
           GITHUB_TOKEN, which is all ghcr.io needs.
         required: false
+      build_secrets:
+        description: >-
+          Secrets forwarded verbatim to docker/build-push-action's `secrets`
+          input: one `id=value` per line, consumed in the Dockerfile with
+          `RUN --mount=type=secret,id=<id>`. Use this rather than `build_args`
+          for anything credential-shaped — build args are recorded in image
+          history and readable from the pushed image.
+        required: false
     outputs:
       image:
         description: Built multi-arch image name (base:tag)
@@ -154,6 +162,11 @@ jobs:
             SHA=${{ github.sha }}
             DD_GIT_REPOSITORY_URL=${{ github.repositoryUrl }}
             DD_GIT_COMMIT_SHA=${{ github.sha }}
+          # Credentials belong here and not in build-args: BuildKit exposes
+          # these for the lifetime of a single RUN and they never reach a layer
+          # or the image history. Empty string when the caller sets nothing,
+          # which the action ignores.
+          secrets: ${{ secrets.build_secrets }}
           # Default to the per-platform GHA cache; ignore-error on export so a
           # flaky or concurrently-racing "failed to reserve cache" never fails
           # the build (the image is already built/pushed by then). An explicit
