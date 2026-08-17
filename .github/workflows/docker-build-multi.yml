@@ -28,6 +28,13 @@ on:
         description: Path to the Dockerfile (repo-root relative). Defaults to <context>/Dockerfile when not given.
         required: false
         type: string
+      target:
+        description: >-
+          Dockerfile stage to build. Empty (the default) builds the last stage
+          in the file, which is what a bare `docker build` does — so a caller
+          that does not set this is unaffected.
+        required: false
+        type: string
       push:
         description: >-
           Whether to push the built image to the registry. Set to false to
@@ -150,6 +157,7 @@ jobs:
           # Default the Dockerfile to <context>/Dockerfile when not given, as
           # docker-build.yml does.
           file: ${{ inputs.dockerfile != '' && inputs.dockerfile || format('{0}/Dockerfile', inputs.context) }}
+          target: ${{ inputs.target }}
           platforms: ${{ matrix.platform }}
           # Push by digest only: no per-arch tags in the registry, the merge
           # job assembles the manifest list and applies the real tags.
