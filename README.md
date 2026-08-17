@@ -53,6 +53,7 @@ see the example below). Same automatic build args as
 | `build_args` | no | Extra build args appended to the defaults. |
 | `context` | no | Build context path (defaults to `.`). |
 | `dockerfile` | no | Dockerfile path, repo-root relative (defaults to `<context>/Dockerfile`). |
+| `target` | no | Dockerfile stage to build (defaults to the last stage in the file). |
 | `push` | no | Set to `false` to build without pushing (skips the merge job). |
 | `ref` | no | Ref to check out and build. |
 | `registry` | no | Target registry (defaults to `ghcr.io`). |
@@ -62,6 +63,7 @@ see the example below). Same automatic build args as
 | Secret | Required | Description |
 |---|---|---|
 | `registry_password` | no | Registry login password/token. Defaults to `GITHUB_TOKEN`, which is all `ghcr.io` needs. |
+| `build_secrets` | no | BuildKit secrets, one `id=value` per line. Use this rather than `build_args` for credentials. |
 
 | Output | Description |
 |---|---|
@@ -97,6 +99,26 @@ jobs:
       image_name: ghcr.io/myorg/myapp-frontend
       dockerfile: frontend/Dockerfile
     secrets: inherit
+```
+
+**Passing a credential to the build.** Build args end up in the image history,
+so anything credential-shaped belongs in `build_secrets` instead: it is
+forwarded verbatim to `docker/build-push-action`'s `secrets` input, one
+`id=value` per line, and BuildKit exposes each value only for the lifetime of
+the `RUN` that mounts it.
+
+```yaml
+jobs:
+  build:
+    uses: fabn/workflows/.github/workflows/docker-build-multi.yml@v1
+    secrets:
+      build_secrets: |
+        package_auth=${{ secrets.PACKAGE_AUTH }}
+```
+
+```dockerfile
+RUN --mount=type=secret,id=package_auth,env=PACKAGE_AUTH \
+    install-something
 ```
 
 **Calling from a private repository.** GitHub's `ubuntu-24.04-arm` runner is
