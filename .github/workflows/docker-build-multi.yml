@@ -144,7 +144,7 @@ jobs:
       - name: Login to registry
         # Only needed when the image is actually pushed (e.g. skipped on a PR smoke test)
         if: ${{ inputs.push }}
-        uses: docker/login-action@v4
+        uses: docker/login-action@v4.5.2
         with:
           registry: ${{ inputs.registry }}
           username: ${{ inputs.registry_username }}
@@ -238,7 +238,7 @@ jobs:
           # Fetch git metadata instead of workflow context, since might be triggered from main comments
           context: git
       - name: Login to registry
-        uses: docker/login-action@v4
+        uses: docker/login-action@v4.5.2
         with:
           registry: ${{ inputs.registry }}
           username: ${{ inputs.registry_username }}
