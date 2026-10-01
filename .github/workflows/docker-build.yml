@@ -101,7 +101,7 @@ jobs:
       - name: Login to GitHub Container Registry
         # Only needed when the image is actually pushed (e.g. skipped on a PR smoke test)
         if: ${{ inputs.push }}
-        uses: docker/login-action@v4
+        uses: docker/login-action@v4.5.2
         with:
           registry: ghcr.io
           username: ${{ github.repository_owner }}
