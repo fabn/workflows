@@ -111,9 +111,23 @@ on:
         value: ${{ jobs.merge.outputs.tag }}
 
 jobs:
+  resolve:
+    name: Resolve the commit to build
+    runs-on: ubuntu-latest
+    outputs:
+      sha: ${{ steps.sha.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref }}
+      - name: Commit of the ref
+        id: sha
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
   build:
     name: Build ${{ matrix.platform }}
     runs-on: ${{ matrix.runner }}
+    needs: resolve
     strategy:
       matrix:
         include: ${{ fromJSON(inputs.runners) }}
@@ -125,6 +139,23 @@ jobs:
       - uses: actions/checkout@v7
         with:
           ref: ${{ inputs.ref }}
+      - name: Pin the commit resolved at the start
+        # inputs.ref is usually a branch name, checked out again by every job: a
+        # push during the run would build one commit and tag another. Keep the
+        # branch checked out, so that the git context of the tags still has it,
+        # but on the commit every job builds.
+        env:
+          SHA: ${{ needs.resolve.outputs.sha }}
+        run: |
+          if [ "$(git rev-parse HEAD)" != "$SHA" ]; then
+            git fetch --no-tags --depth=1 origin "$SHA"
+            branch="$(git rev-parse --abbrev-ref HEAD)"
+            if [ "$branch" = HEAD ]; then
+              git checkout --detach "$SHA"
+            else
+              git checkout -B "$branch" "$SHA"
+            fi
+          fi
       - name: Sanitize platform and image names
         # Slashes and colons are invalid in artifact names, and a comma (a
         # runners entry can carry several platforms for a single cross-build
@@ -202,7 +233,7 @@ jobs:
     name: Merge platform manifests
     if: ${{ inputs.push }}
     runs-on: ubuntu-latest
-    needs: build
+    needs: [resolve, build]
     env:
       image_base: ${{ inputs.image_name != '' && inputs.image_name || format('{0}/{1}', inputs.registry, github.repository) }}
     outputs:
@@ -213,6 +244,23 @@ jobs:
       - uses: actions/checkout@v7
         with:
           ref: ${{ inputs.ref }}
+      - name: Pin the commit resolved at the start
+        # inputs.ref is usually a branch name, checked out again by every job: a
+        # push during the run would build one commit and tag another. Keep the
+        # branch checked out, so that the git context of the tags still has it,
+        # but on the commit every job builds.
+        env:
+          SHA: ${{ needs.resolve.outputs.sha }}
+        run: |
+          if [ "$(git rev-parse HEAD)" != "$SHA" ]; then
+            git fetch --no-tags --depth=1 origin "$SHA"
+            branch="$(git rev-parse --abbrev-ref HEAD)"
+            if [ "$branch" = HEAD ]; then
+              git checkout --detach "$SHA"
+            else
+              git checkout -B "$branch" "$SHA"
+            fi
+          fi
       - name: Compute image slug
         run: echo "IMAGE_SLUG=$(echo "$image_base" | tr '/:' '--')" >> "$GITHUB_ENV"
       - name: Download digests
