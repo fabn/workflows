@@ -138,24 +138,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: ${{ inputs.ref }}
-      - name: Pin the commit resolved at the start
-        # inputs.ref is usually a branch name, checked out again by every job: a
-        # push during the run would build one commit and tag another. Keep the
-        # branch checked out, so that the git context of the tags still has it,
-        # but on the commit every job builds.
-        env:
-          SHA: ${{ needs.resolve.outputs.sha }}
-        run: |
-          if [ "$(git rev-parse HEAD)" != "$SHA" ]; then
-            git fetch --no-tags --depth=1 origin "$SHA"
-            branch="$(git rev-parse --abbrev-ref HEAD)"
-            if [ "$branch" = HEAD ]; then
-              git checkout --detach "$SHA"
-            else
-              git checkout -B "$branch" "$SHA"
-            fi
-          fi
+          ref: ${{ needs.resolve.outputs.sha }}
       - name: Sanitize platform and image names
         # Slashes and colons are invalid in artifact names, and a comma (a
         # runners entry can carry several platforms for a single cross-build
@@ -244,23 +227,13 @@ jobs:
       - uses: actions/checkout@v7
         with:
           ref: ${{ inputs.ref }}
-      - name: Pin the commit resolved at the start
-        # inputs.ref is usually a branch name, checked out again by every job: a
-        # push during the run would build one commit and tag another. Keep the
-        # branch checked out, so that the git context of the tags still has it,
-        # but on the commit every job builds.
+      - name: Move the branch to the commit that was built
+        # The tags take the branch from the checkout (context: git), so this job
+        # checks the ref out by name, then pins it to the commit the platform
+        # builds checked out: a push during the run would tag another commit.
         env:
           SHA: ${{ needs.resolve.outputs.sha }}
-        run: |
-          if [ "$(git rev-parse HEAD)" != "$SHA" ]; then
-            git fetch --no-tags --depth=1 origin "$SHA"
-            branch="$(git rev-parse --abbrev-ref HEAD)"
-            if [ "$branch" = HEAD ]; then
-              git checkout --detach "$SHA"
-            else
-              git checkout -B "$branch" "$SHA"
-            fi
-          fi
+        run: git fetch --no-tags --depth=1 origin "$SHA" && git reset --hard "$SHA"
       - name: Compute image slug
         run: echo "IMAGE_SLUG=$(echo "$image_base" | tr '/:' '--')" >> "$GITHUB_ENV"
       - name: Download digests
