@@ -16,6 +16,13 @@ on:
         description: 'Deployment identifier when using 2 phase deploy'
         required: false
         type: string
+      runs_on:
+        description: >-
+          Runner label for the job, e.g. a larger or self-hosted runner.
+          Defaults to ubuntu-latest.
+        required: false
+        type: string
+        default: ubuntu-latest
     secrets:
       access_token:
         description: 'The Rollbar access token'
@@ -28,7 +35,7 @@ on:
 jobs:
   rollbar:
     name: Rollbar Deployment
-    runs-on: ubuntu-latest
+    runs-on: ${{ inputs.runs_on }}
     outputs:
       deploy_id: ${{ steps.rollbar.outputs.deploy_id }}
     steps:

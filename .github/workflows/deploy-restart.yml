@@ -23,6 +23,13 @@ on:
         description: 'Github environment URL'
         required: false
         type: string
+      runs_on:
+        description: >-
+          Runner label for the job, e.g. a larger or self-hosted runner.
+          Defaults to ubuntu-latest.
+        required: false
+        type: string
+        default: ubuntu-latest
     secrets:
       token:
         description: 'DigitalOcean API token'
@@ -35,7 +42,7 @@ concurrency:
 jobs:
   deploy:
     name: Deployment restart
-    runs-on: ubuntu-latest
+    runs-on: ${{ inputs.runs_on }}
     timeout-minutes: 10
     environment:
       name: ${{ inputs.environment_name }}

@@ -85,6 +85,14 @@ on:
         required: false
         type: string
         default: ''
+      runs_on:
+        description: >-
+          Runner label for the lightweight resolve and merge jobs. The
+          per-platform builds run on the `runners` input instead. Defaults to
+          ubuntu-latest.
+        required: false
+        type: string
+        default: ubuntu-latest
     secrets:
       registry_password:
         description: >-
@@ -113,7 +121,7 @@ on:
 jobs:
   resolve:
     name: Resolve the commit to build
-    runs-on: ubuntu-latest
+    runs-on: ${{ inputs.runs_on }}
     outputs:
       sha: ${{ steps.sha.outputs.sha }}
     steps:
@@ -215,7 +223,7 @@ jobs:
   merge:
     name: Merge platform manifests
     if: ${{ inputs.push }}
-    runs-on: ubuntu-latest
+    runs-on: ${{ inputs.runs_on }}
     needs: [resolve, build]
     env:
       image_base: ${{ inputs.image_name != '' && inputs.image_name || format('{0}/{1}', inputs.registry, github.repository) }}
