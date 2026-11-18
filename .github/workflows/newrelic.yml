@@ -7,6 +7,13 @@ on:
         description: 'The application to mark as deployed'
         required: true
         type: string
+      runs_on:
+        description: >-
+          Runner label for the job, e.g. a larger or self-hosted runner.
+          Defaults to ubuntu-latest.
+        required: false
+        type: string
+        default: ubuntu-latest
     secrets:
       api_key:
         description: 'New Relic API key'
@@ -17,7 +24,7 @@ on:
 
 jobs:
   newrelic:
-    runs-on: ubuntu-latest
+    runs-on: ${{ inputs.runs_on }}
     name: New Relic Deployment
     steps:
       - name: Create New Relic deployment marker

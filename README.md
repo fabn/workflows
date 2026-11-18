@@ -8,6 +8,10 @@ Relic and Rollbar.
 Pin to the major tag (`@v1`) in production, or `@main` if you like living
 dangerously.
 
+Every reusable workflow takes an optional `runs_on` input that picks the runner
+for its jobs (a larger or self-hosted runner, for instance) and defaults to
+`ubuntu-latest`.
+
 ## Reusable workflows
 
 ### `docker-build.yml`
@@ -22,6 +26,7 @@ several build args automatically (`APP_REVISION`, `APP_DIST`, `BRANCH`, `SHA`,
 | `image` | no | Override image name (defaults to `ghcr.io/<repo>`). |
 | `build_args` | no | Extra build args appended to the defaults. |
 | `ref` | no | Ref to check out and build. |
+| `runs_on` | no | Runner label for the build job (defaults to `ubuntu-latest`). |
 
 | Output | Description |
 |---|---|
@@ -59,6 +64,7 @@ see the example below). Same automatic build args as
 | `registry` | no | Target registry (defaults to `ghcr.io`). |
 | `registry_username` | no | Registry login username (defaults to the repository owner). |
 | `runners` | no | JSON array of `{platform, runner}` pairs, one native build each. |
+| `runs_on` | no | Runner for the lightweight resolve and merge jobs (defaults to `ubuntu-latest`). |
 
 | Secret | Required | Description |
 |---|---|---|

@@ -39,6 +39,13 @@ on:
         required: false
         type: boolean
         default: true
+      runs_on:
+        description: >-
+          Runner label for the build job, e.g. a larger or self-hosted runner.
+          Defaults to ubuntu-latest.
+        required: false
+        type: string
+        default: ubuntu-latest
 
       ref:
         description: The ref to build the image for
@@ -58,7 +65,7 @@ on:
 jobs:
   docker:
     name: Build and push
-    runs-on: ubuntu-latest
+    runs-on: ${{ inputs.runs_on }}
     env:
       # Base image name for tagging and outputs: the explicit override when
       # given, otherwise the repository name on ghcr.io (the historical default).

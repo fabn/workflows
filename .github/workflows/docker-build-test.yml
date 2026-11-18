@@ -51,6 +51,14 @@ jobs:
       dockerfile: test/sub/Dockerfile
     secrets: inherit
 
+  build-runs-on:
+    name: Build with an explicit runs_on
+    uses: ./.github/workflows/docker-build.yml
+    with:
+      push: false
+      runs_on: ubuntu-24.04
+    secrets: inherit
+
   assert-outputs:
     name: Assert outputs
     needs: [build-default, build-image-name]
