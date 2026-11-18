@@ -22,6 +22,7 @@ several build args automatically (`APP_REVISION`, `APP_DIST`, `BRANCH`, `SHA`,
 | `image` | no | Override image name (defaults to `ghcr.io/<repo>`). |
 | `build_args` | no | Extra build args appended to the defaults. |
 | `ref` | no | Ref to check out and build. |
+| `runs_on` | no | Runner label for the build job (defaults to `ubuntu-latest`). |
 
 | Output | Description |
 |---|---|
