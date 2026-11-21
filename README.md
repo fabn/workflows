@@ -65,6 +65,9 @@ see the example below). Same automatic build args as
 | `registry_username` | no | Registry login username (defaults to the repository owner). |
 | `runners` | no | JSON array of `{platform, runner}` pairs, one native build each. |
 | `runs_on` | no | Runner for the lightweight resolve and merge jobs (defaults to `ubuntu-latest`). |
+| `cache_from` | no | buildx cache source (defaults to the per-platform GHA cache). |
+| `cache_to` | no | buildx cache target, used as given (defaults to the per-platform GHA cache, `mode=max`, exported as `cache_write` says). |
+| `cache_write` | no | When the default cache is exported: `default-branch` (default, only on runs of the default branch, the only ref whose cache other branches can read), `always` or `never`. |
 
 | Secret | Required | Description |
 |---|---|---|

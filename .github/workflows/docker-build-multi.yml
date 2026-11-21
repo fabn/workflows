@@ -81,10 +81,27 @@ on:
           (type=gha,mode=max,scope=<image>-<platform>,ignore-error=true) so a flaky or
           concurrently-racing cache export never fails the build — the image is
           already built and pushed by then. Override verbatim for a different
-          backend, or set to 'type=inline' / '' handling as needed.
+          backend, or set to 'type=inline' / '' handling as needed. An explicit
+          value is used as given, whatever cache_write says.
         required: false
         type: string
         default: ''
+      cache_write:
+        description: >-
+          When the default GHA cache is exported. `default-branch` (the
+          default) exports it only when the calling run is on the repository's
+          default branch: GitHub Actions caches are scoped to the ref that
+          wrote them, so an export from a feature branch, a pull request or a
+          tag can only ever be read back by that same ref, while the default
+          branch cache is readable by every branch. Exporting a `mode=max`
+          cache takes minutes, so skipping it where it is not reused shortens
+          those builds and keeps them from evicting the default branch entries
+          under the repository cache quota. `always` restores the previous
+          behaviour (export on every run), `never` disables it. The cache is
+          read (cache_from) in every case. Ignored when cache_to is set.
+        required: false
+        type: string
+        default: default-branch
       runs_on:
         description: >-
           Runner label for the lightweight resolve and merge jobs. The
@@ -161,6 +178,30 @@ jobs:
             echo "PLATFORM_PAIR=$(echo "$PLATFORM" | tr '/,' '--')"
             echo "IMAGE_SLUG=$(echo "$image_base" | tr '/:' '--')"
           } >> "$GITHUB_ENV"
+      - name: Resolve the cache export
+        # Empty CACHE_TO means no export. GITHUB_REF is the ref of the calling
+        # run (refs/pull/N/merge on a pull request, refs/tags/... on a release),
+        # which is also the ref GitHub scopes the written cache to.
+        if: ${{ inputs.cache_to == '' }}
+        env:
+          CACHE_WRITE: ${{ inputs.cache_write }}
+          DEFAULT_REF: refs/heads/${{ github.event.repository.default_branch }}
+        run: |
+          case "$CACHE_WRITE" in
+            always) write=true ;;
+            never) write=false ;;
+            default-branch) [ "$GITHUB_REF" = "$DEFAULT_REF" ] && write=true || write=false ;;
+            *)
+              echo "::error::cache_write must be default-branch, always or never, got '$CACHE_WRITE'"
+              exit 1
+              ;;
+          esac
+          if [ "$write" = true ]; then
+            echo "CACHE_TO=type=gha,mode=max,scope=${IMAGE_SLUG}-${PLATFORM_PAIR},ignore-error=true" >> "$GITHUB_ENV"
+            echo "Exporting the build cache ($CACHE_WRITE, $GITHUB_REF)"
+          else
+            echo "Not exporting the build cache ($CACHE_WRITE, $GITHUB_REF)"
+          fi
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
       - name: Login to registry
@@ -199,10 +240,12 @@ jobs:
           secrets: ${{ secrets.build_secrets }}
           # Default to the per-platform GHA cache; ignore-error on export so a
           # flaky or concurrently-racing "failed to reserve cache" never fails
-          # the build (the image is already built/pushed by then). An explicit
-          # input overrides verbatim (e.g. a registry cache).
+          # the build (the image is already built/pushed by then). Whether the
+          # default cache is exported at all is cache_write's call (CACHE_TO is
+          # empty when it is not). An explicit input overrides verbatim (e.g. a
+          # registry cache).
           cache-from: ${{ inputs.cache_from != '' && inputs.cache_from || format('type=gha,scope={0}-{1}', env.IMAGE_SLUG, env.PLATFORM_PAIR) }}
-          cache-to: ${{ inputs.cache_to != '' && inputs.cache_to || format('type=gha,mode=max,scope={0}-{1},ignore-error=true', env.IMAGE_SLUG, env.PLATFORM_PAIR) }}
+          cache-to: ${{ inputs.cache_to != '' && inputs.cache_to || env.CACHE_TO }}
       - name: Export digest
         if: ${{ inputs.push }}
         env:
