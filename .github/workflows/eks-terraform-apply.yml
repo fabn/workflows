@@ -151,7 +151,7 @@ jobs:
 
       - name: Install SOPS
         if: ${{ env.SOPS_AGE_KEY != '' }}
-        uses: mdgreenwald/mozilla-sops-action@v2.1.1
+        uses: mdgreenwald/mozilla-sops-action@v2.1.3
 
       - name: Assume the deploy role
         uses: aws-actions/configure-aws-credentials@v6
